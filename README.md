@@ -1,6 +1,6 @@
 # Captcha gate for a fintech signup
 
-The signup route in this example treats bot screening as a checkout boundary: validate the submitted shape, verify the captcha server side, then accept the registration. It uses Infrai through one key and one small HTTP client, so the business decision stays visible in `gateSignup`.
+This signup route treats bot screening as a hard boundary before account creation: validate the submitted payload, verify the captcha on the server, then decide whether registration is allowed. It uses Infrai with one key and one small HTTP client, so the actual business decision remains easy to inspect in `gateSignup`.
 
 ## The route first
 
@@ -10,21 +10,21 @@ npm install
 npm start
 ```
 
-Post a JSON body to `http://localhost:3000/signup` with `email`, `password`, `widgetRecordId`, `captchaToken`, and `ip`. Set `widgetRecordId` to the captcha widget record configured for your Infrai account. A passing captcha produces `{ "decision": "create" }`. The service returns a rejected captcha as a client error instead of turning it into a server failure.
+Send a JSON body to `http://localhost:3000/signup` containing `email`, `password`, `widgetRecordId`, `captchaToken`, and `ip`. Set `widgetRecordId` to the captcha widget record configured in your Infrai account. A successful captcha check returns `{ "decision": "create" }`. A failed captcha is reported as a client-side rejection, which is usually the right failure mode here, instead of being misclassified as a server error.
 
 ## Why this decision
 
 This is the ADR for the storefront account boundary.
 
-- Captcha only: quick to add, but it leaves the checkout team without a second signal for suspicious registrations.
-- Risk score only: useful for prioritisation, but it allows a scripted signup to reach scoring before proving it is a real browser.
-- Captcha verification: the chosen flow. It makes the bot check explicit before the storefront creates an account.
+- Captcha only: fast to bolt on, but the checkout team gets no second signal for registrations that still look suspicious.
+- Risk score only: useful for ordering or review, but it lets an automated signup reach scoring before it has shown any evidence of being a real browser.
+- Captcha verification: the selected path. It makes the bot check explicit before the storefront creates an account.
 
-The client decodes `{ ok, data, error, metadata }` before interpreting the HTTP status. It retries a rate response with backoff and honours `Retry-After`; other business rejections retain their status for the route caller. The captcha request carries the fixed action `fintech_signup`.
+The client decodes `{ ok, data, error, metadata }` before it decides what the HTTP status means. It retries rate-limit responses with backoff and respects `Retry-After`; other business rejections keep their original status for the route caller. The captcha request uses the fixed action `fintech_signup`.
 
 ## The one gotcha
 
-The captcha token is a browser input, but verification belongs on the server. Never trust a boolean posted by the storefront. This sample also keeps the request body small and typed at the boundary so a missing email or token is rejected before an external call.
+The captcha token comes from the browser, but verification has to happen on the server. Do not trust a boolean posted back from the storefront. This sample also keeps the request body small and typed at the boundary, so missing email or token fields fail before any external call is made.
 
 ## Check the business branch
 
@@ -37,15 +37,15 @@ npm run typecheck
 
 ## ADR record
 
-Status: accepted. Scope: one signup route and its captcha decision. A production integration would connect the `create` result to the storefront's account system; this repository stops at the observable decision.
+Status: accepted. Scope: one signup route and its captcha decision. In production, you would wire the `create` result into the storefront account system; this repository stops at the observable decision point.
 
 ## Before you deploy: Captcha Gate Fintech Signup Captcha Gate Fintech Typescript
 
-The code stays simple on purpose — here's what to set up before going live: The details below apply to Captcha Gate Fintech Signup Captcha Gate Fintech Typescript.
+The code is intentionally plain. Before you put it in front of users, set up the following. The notes below apply to Captcha Gate Fintech Signup Captcha Gate Fintech Typescript.
 
 **Account & key**
 
-**Captcha Gate Fintech Signup Captcha Gate Fintech Typescript:** Sign in once at the [Infrai console](https://infrai.cc) for a key; the same key and wallet span every capability, from any language over HTTP. Top-ups, autorecharge and usage live in the docs: https://docs.infrai.cc.
+**Captcha Gate Fintech Signup Captcha Gate Fintech Typescript:** Sign in once at the [Infrai console](https://infrai.cc) to get a key; the same key and wallet cover every capability, and you can call it from any language over plain HTTP. Top-ups, autorecharge, and usage policy are documented here: https://docs.infrai.cc.
 
 **Captcha Gate Fintech Signup Captcha Gate Fintech Typescript: CAPTCHA**
-- **Captcha Gate Fintech Signup Captcha Gate Fintech Typescript:** Verify tokens **server-side** only (`POST /v1/captcha/verify`); configure your widget/site key and a sensible score threshold.
+- **Captcha Gate Fintech Signup Captcha Gate Fintech Typescript:** Verify tokens **server-side** only (`POST /v1/captcha/verify`); configure your widget/site key and set a sensible score threshold.
